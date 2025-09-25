@@ -42,9 +42,9 @@ async def cek_domain(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for domain in domains:
         try:
             resolver.resolve(domain, 'A')
-            results.append(f"✅ {domain} **TIDAK KENA NAWALA**")
+            results.append(f"✅ {domain} → 𝐀𝐌𝐀𝐍 𝐁𝐑𝐄")
         except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer, dns.resolver.Timeout):
-            results.append(f"❌ {domain} **KENA NAWALA / Tidak dapat diakses dari resolver Nawala**")
+            results.append(f"❌ {domain} → 𝐀𝐃𝐔𝐇 𝐊𝐄𝐍𝐀 / 𝐓𝐢𝐝𝐚𝐤 𝐝𝐢𝐭𝐞𝐦𝐮𝐤𝐚𝐧")
         except Exception as e:
             results.append(f"⚠️ {domain} Error: {str(e)}")
 
