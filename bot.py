@@ -39,9 +39,9 @@ async def cek_domain(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for domain in domains:
         try:
             dns.resolver.resolve(domain, 'A')
-            results.append(f"✅ {domain} ** → AMAN BRE**")
+            results.append(f"✅ {domain} → 𝗔𝗠𝗔𝗡 𝗕𝗥𝗘")
         except dns.resolver.NXDOMAIN:
-            results.append(f"❌ {domain} ** → ADUH KENA / Tidak ditemukan**")
+            results.append(f"❌ {domain} → 𝐀𝐃𝐔𝐇 𝐊𝐄𝐍𝐀 / 𝐓𝐢𝐝𝐚𝐤 𝐝𝐢𝐭𝐞𝐦𝐮𝐤𝐚𝐧")
         except Exception as e:
             results.append(f"⚠️ {domain} Error: {str(e)}")
 
