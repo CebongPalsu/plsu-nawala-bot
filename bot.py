@@ -1,5 +1,6 @@
 import re
 import dns.resolver
+import asyncio
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
@@ -9,6 +10,16 @@ TOKEN = "8339878742:AAGQUjt4pi-xia8WS-uxFIsKMlxCt3pVxrg"
 # 📌 ID grup yang diizinkan
 ALLOWED_CHAT_ID = -4931279381
 
+# 🚀 Fungsi untuk cek domain secara paralel
+async def check_domain(resolver, domain):
+    try:
+        await asyncio.get_event_loop().run_in_executor(None, resolver.resolve, domain, 'A')
+        return f"✅ {domain} **TIDAK KENA NAWALA**"
+    except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer, dns.resolver.Timeout):
+        return f"❌ {domain} **KENA NAWALA / Tidak dapat diakses dari DNS Nawala**"
+    except Exception as e:
+        return f"⚠️ {domain} Error: {str(e)}"
+
 async def cek_domain(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ✅ Cek grup
     if update.effective_chat.id != ALLOWED_CHAT_ID:
@@ -17,7 +28,7 @@ async def cek_domain(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     text = update.message.text.strip()
 
-    # ✅ Cek format perintah
+    # ✅ Pastikan format benar
     if not text.lower().startswith("/cek:"):
         await update.message.reply_text("⚠️ Format salah!\nContoh:\n/cek:\ndomain1.com\ndomain2.com")
         return
@@ -34,19 +45,15 @@ async def cek_domain(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⚠️ Maksimal 50 domain sekali cek bro!")
         return
 
-    # 🔍 Gunakan resolver NAWALA
-    resolver = dns.resolver.Resolver()
-    resolver.nameservers = ["180.131.144.144"]  # DNS Nawala
+    await update.message.reply_text("⏳ Sedang mengecek domain kamu ke DNS Nawala, tunggu sebentar...")
 
-    results = []
-    for domain in domains:
-        try:
-            resolver.resolve(domain, 'A')
-            results.append(f"✅ {domain} → 𝐀𝐌𝐀𝐍 𝐁𝐑𝐄")
-        except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer, dns.resolver.Timeout):
-            results.append(f"❌ {domain} → 𝐀𝐃𝐔𝐇 𝐊𝐄𝐍𝐀 / 𝐓𝐢𝐝𝐚𝐤 𝐝𝐢𝐭𝐞𝐦𝐮𝐤𝐚𝐧")
-        except Exception as e:
-            results.append(f"⚠️ {domain} Error: {str(e)}")
+    # 🔍 Gunakan resolver Nawala
+    resolver = dns.resolver.Resolver()
+    resolver.nameservers = ["180.131.144.144"]
+
+    # 🚀 Jalankan semua pengecekan secara paralel
+    tasks = [check_domain(resolver, domain) for domain in domains]
+    results = await asyncio.gather(*tasks)
 
     await update.message.reply_text("\n".join(results))
 
