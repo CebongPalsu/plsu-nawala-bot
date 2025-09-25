@@ -34,14 +34,17 @@ async def cek_domain(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⚠️ Maksimal 50 domain sekali cek bro!")
         return
 
-    # 🔍 Cek setiap domain
+    # 🔍 Gunakan resolver NAWALA
+    resolver = dns.resolver.Resolver()
+    resolver.nameservers = ["180.131.144.144"]  # DNS Nawala
+
     results = []
     for domain in domains:
         try:
-            dns.resolver.resolve(domain, 'A')
-            results.append(f"✅ {domain} → 𝗔𝗠𝗔𝗡 𝗕𝗥𝗘")
-        except dns.resolver.NXDOMAIN:
-            results.append(f"❌ {domain} → 𝐀𝐃𝐔𝐇 𝐊𝐄𝐍𝐀 / 𝐓𝐢𝐝𝐚𝐤 𝐝𝐢𝐭𝐞𝐦𝐮𝐤𝐚𝐧")
+            resolver.resolve(domain, 'A')
+            results.append(f"✅ {domain} **TIDAK KENA NAWALA**")
+        except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer, dns.resolver.Timeout):
+            results.append(f"❌ {domain} **KENA NAWALA / Tidak dapat diakses dari resolver Nawala**")
         except Exception as e:
             results.append(f"⚠️ {domain} Error: {str(e)}")
 
