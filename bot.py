@@ -1,70 +1,69 @@
-import re
-import asyncio
-import aiohttp
-import dns.resolver
+import cloudscraper
+from bs4 import BeautifulSoup
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+import asyncio
 
-# 🔐 Ganti dengan token bot kamu
-BOT_TOKEN = "8339878742:AAGQUjt4pi-xia8WS-uxFIsKMlxCt3pVxrg"
+# =================== CONFIG ===================
+TOKEN = "8339878742:AAGQUjt4pi-xia8WS-uxFIsKMlxCt3pVxrg"
+GROUP_ID = -4931279381
+MAX_DOMAIN = 50
+NAWALA_URL = "https://nawala.online/check"
+# ==============================================
 
-# 📌 ID grup yang boleh pakai bot ini
-ALLOWED_CHAT_ID = -4931279381
+# Buat scraper anti-Cloudflare
+scraper = cloudscraper.create_scraper()
 
-# IP khas DNS Nawala (biar deteksinya lebih akurat)
-NAWALA_IP_PREFIXES = ["180.131.", "180.250."]
-
-async def cek_nawala(domain: str) -> str:
+async def cek_nawala(domains: list):
+    """
+    Cek list domain ke nawala.online dan parsing hasilnya
+    """
+    hasil = []
+    data = {"url": "\n".join(domains)}
     try:
-        resolver = dns.resolver.Resolver()
-        resolver.nameservers = ["180.131.144.144", "180.131.145.145"]  # DNS Nawala
-        answer = resolver.resolve(domain, "A")
-        ip = answer[0].to_text()
+        response = scraper.post(NAWALA_URL, data=data, timeout=15)
+        soup = BeautifulSoup(response.text, "html.parser")
+        
+        # Parsing hasil per domain
+        for tr in soup.select("table tbody tr"):
+            tds = tr.find_all("td")
+            if len(tds) >= 2:
+                domain = tds[0].get_text(strip=True)
+                status_text = tds[1].get_text(strip=True)
+                status = "❌ Diblokir" if "terblokir" in status_text.lower() else "✅ Aman"
+                hasil.append(f"{domain} – {status}")
+    except Exception as e:
+        hasil.append(f"Error cek Nawala: {e}")
+    return hasil
 
-        # Jika IP mengarah ke IP khas Nawala
-        if any(ip.startswith(prefix) for prefix in NAWALA_IP_PREFIXES):
-            return f"🚫 {domain} : KENA NAWALA (IP: {ip})"
+async def cek_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Handler /cek <domain1> <domain2> ...
+    """
+    if not context.args:
+        await update.message.reply_text(
+            "Kirim /cek diikuti domain (max 50). Contoh:\n/cek domain1.com domain2.com"
+        )
+        return
+    
+    domains = context.args[:MAX_DOMAIN]
+    await update.message.reply_text(f"🔍 Sedang cek {len(domains)} domain ke Nawala...")
+    
+    hasil = await cek_nawala(domains)
+    
+    pesan = "🔍 Hasil Cek Nawala:\n\n" + "\n".join(f"{i+1}. {h}" for i, h in enumerate(hasil))
+    
+    # Kirim hasil ke grup
+    await context.bot.send_message(chat_id=GROUP_ID, text=pesan)
 
-        # Coba akses langsung domain-nya pakai HTTP
-        async with aiohttp.ClientSession() as session:
-            try:
-                async with session.get(f"http://{domain}", timeout=3) as resp:
-                    if resp.status in [200, 301, 302]:
-                        return f"✅ {domain} : AMAN"
-                    else:
-                        return f"⚠️ {domain} : Resolve OK tapi respon {resp.status}"
-            except asyncio.TimeoutError:
-                return f"⚠️ {domain} : Timeout saat diakses"
-            except:
-                return f"⚠️ {domain} : Resolve OK tapi tidak bisa diakses"
-
-    except Exception:
-        return f"🚫 {domain} : KENA NAWALA (tidak bisa resolve)"
-
-async def cek_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_chat.id != ALLOWED_CHAT_ID:
-        return await update.message.reply_text("🚫 Bot ini hanya bisa dipakai di grup khusus.")
-
-    text = update.message.text
-    domains = re.findall(r"([\w-]+\.[\w.-]+)", text)
-    if not domains:
-        return await update.message.reply_text("❌ Format salah.\nContoh:\n/cek:\ndomain1.com\ndomain2.com")
-
-    # Maksimal 50 domain
-    domains = domains[:50]
-
-    # Jalankan semua pengecekan secara paralel 🚀
-    tasks = [cek_nawala(domain) for domain in domains]
-    results = await asyncio.gather(*tasks)
-
-    hasil_text = "\n".join(results)
-    await update.message.reply_text(f"📊 Hasil Pengecekan ({len(domains)} domain):\n\n{hasil_text}")
-
-def main():
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
-    app.add_handler(CommandHandler("cek", cek_handler))
-    print("🤖 Bot cepat & akurat sedang berjalan...")
-    app.run_polling()
+async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Bot siap! Gunakan /cek <domain1> <domain2> ...")
 
 if __name__ == "__main__":
-    main()
+    app = ApplicationBuilder().token(TOKEN).build()
+    
+    app.add_handler(CommandHandler("start", start_command))
+    app.add_handler(CommandHandler("cek", cek_command))
+    
+    print("Bot berjalan...")
+    app.run_polling()
